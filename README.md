@@ -1,7 +1,7 @@
 # AtTiny85-SPI-PWM
 /*
  
- AtTiny85 acts as SPI slave; upon receiving a byte it sets fast PWM duty cycle to that byte. Currently the PWM frequency is hardcoded.
+ AtTiny85 acts as SPI slave (Mode 0); upon receiving a byte it sets fast PWM duty cycle to that byte. Currently the PWM frequency is hardcoded.
  
  This uses the AtTiny85 Arduino core available on code.google.com
  
