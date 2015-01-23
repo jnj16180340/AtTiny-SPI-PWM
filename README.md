@@ -1,10 +1,13 @@
 # AtTiny85-SPI-PWM
 /*
  
+ AtTiny85 acts as SPI slave; upon receiving a byte it sets fast PWM duty cycle to that byte. Currently the PWM frequency is hardcoded.
+ 
  This uses the AtTiny85 Arduino core available on code.google.com
  
  TODO:
    Store values (frequency etc.) in EEPROM
+   Multiplex SPI pins to free up another pin for more PWM????
    SPI:
      Multi bytes OR less than 8 bit resolution
      Clock prescaler and wider range of frequencies
