@@ -1,32 +1,3 @@
-/*
- 
- This uses the AtTiny85 Arduino code available on code.google.com
- 
- TODO:
-   Store values (frequency etc.) in EEPROM
-   SPI:
-     Multi bytes OR less than 8 bit resolution
-     Clock prescaler and wider range of frequencies
-     H-bridge control... Is it possible???
- 
- ATtiny85 test code
- 
- The connections to the ATTiny are as follows:
- ATTiny    Arduino    Info
- Pin  1  - 5          RESET / Rx (Not receiving any data)
- Pin  2  - 3          Tx for serial conenction
- Pin  3  - 4          FET driver (PWM)
- Pin  4  -            GND
- Pin  5  - 0          RED LED (PWM)
- Pin  6  - 1          GREEN LED
- Pin  7  - 2 / A1     Vsensor (Analog)
- Pin  8  -   +Vcc
- 
- http://www.technoblogy.com/show?LE0
- http://www.technoblogy.com/show?KVO
-
- */
-
 #include <stdlib.h>
 //#include <EEPROM.h>
 #include <avr/interrupt.h>
@@ -39,26 +10,23 @@
 #define SCK  2	//physical pin 7
 #define CS   3	//physical pin 2
 
-// Pin change interrupts
-#define PCIE0  5
+#define PCIE0  5	// Pin change interrupts
 
-// This is used by delay.h library
-#define F_CPU 8000000  
+#define F_CPU 8000000	// This is used by delay.h library
 
-//chip select flag
-volatile boolean csLow = false;
-volatile int recvByte = 0;
-volatile boolean recvFlag = false;
+volatile boolean csLow = false;	// chip select flag, active = low
+volatile int recvByte = 0;	// incoming spi byte
+volatile boolean recvFlag = false;	// have received spi byte?
 
 // ATtiny85 outputs
 //volatile uint8_t* Port[] = {&OCR0A, &OCR0B, &OCR1B};
 //int Pin[] = {0, 1, 4};
 
 void setup() {
-  ////////////////////////////////////////////////////
+  
   // PWM setup
   pinMode(4, OUTPUT);
-  pinMode(3,INPUT); //for later...
+  pinMode(3,INPUT); // CS for spi
  
   // Configure counter/timer1 for fast PWM on PB4
   // COM1B0: 2 -> normal, 3 -> inverting
@@ -72,7 +40,7 @@ void setup() {
   // 4: 4000
   // 7: 500
   // 8: 250
-  TCCR1 = 2<<CS10;
+  TCCR1 = 2<<CS10; // sets PWM frequency to about 20kHz
   
   SetPwm(0);
   
@@ -104,37 +72,11 @@ inline void SetPwm (int duty) {
 }
 
 void loop() {
-    /*for (int i=0; i <= 255; i++) {
-      SetPwm(i);
-      delay(10);
-  } */
   if(recvFlag){
-                SetPwm(recvByte);
-		/*int i=8;
-		while(i>0){ //blip out the byte MSB first
-			i--;
-			digitalWrite(LED, HIGH);
-			if(((1<<i)&recvByte)>0){
-				delay(400); //long blip
-			}
-			else{
-				delay(100); //short blip
-			}
-			digitalWrite(LED, LOW);
-			delay(100);		
-		}*/
-                
-                /*for (int i=0; 1; i++) {
-                  SetPwm(i);
-                  delay(10);
-                }*/
-                
-		recvFlag = false;		
-	}
+    SetPwm(recvByte);
+    recvFlag = false;
+  }
 }
-
-
-
 
 ISR(PCINT0_vect){//readies the system for a SPI transaction if the pin is low
   if(digitalRead(CS)==LOW){
