@@ -9,8 +9,10 @@
 #define MISO 1	//physical pin 6
 #define SCK  2	//physical pin 7
 #define CS   3	//physical pin 2
-
 #define PCIE0  5	// Pin change interrupts
+
+// PWM
+#define PWMA 4
 
 #define F_CPU 8000000	// This is used by delay.h library
 
@@ -23,27 +25,7 @@ volatile boolean recvFlag = false;	// have received spi byte?
 //int Pin[] = {0, 1, 4};
 
 void setup() {
-  
-  // PWM setup
-  pinMode(4, OUTPUT);
-  pinMode(3,INPUT); // CS for spi
- 
-  // Configure counter/timer1 for fast PWM on PB4
-  // COM1B0: 2 -> normal, 3 -> inverting
-  GTCCR = 1<<PWM1B | 2<<COM1B0;
-  //TCCR1 = 3<<COM1A0 | 7<<CS10;
-  // CS10 is a clock rate divisor; COM1A0 set above is bugfix which is irrelevant (we're not using inverted mode, which needs COM1A0 to be nonzero)
-  // but scope (crappy computer scope) says 62500ish...
-  // 1: 40000
-  // 2: 20000
-  // 3: 8000
-  // 4: 4000
-  // 7: 500
-  // 8: 250
-  TCCR1 = 2<<CS10; // sets PWM frequency to about 20kHz
-  
-  SetPwm(0);
-  
+  setupPwm();
   setupSPI(); 
 }
 
@@ -64,6 +46,27 @@ void setupSPI(){
   GIMSK  |= (1<<PCIE0);
   //GIMSK |= 0b00100000;
   sei();
+}
+
+void setupPwm(){
+  // PWM setup
+  pinMode(PWMA, OUTPUT);
+  // Configure counter/timer1 for fast PWM on PB4
+  // COM1B0: 2 -> normal, 3 -> inverting
+  GTCCR = 1<<PWM1B | 2<<COM1B0;
+  //TCCR1 = 3<<COM1A0 | 7<<CS10;
+  // CS10 is a clock rate divisor; COM1A0 set above is bugfix which is irrelevant (we're not using inverted mode, which needs COM1A0 to be nonzero)
+  // but scope (crappy computer scope) says 62500ish...
+  // 1: 40000
+  // 2: 20000
+  // 3: 8000
+  // 4: 4000
+  // 7: 500
+  // 8: 250
+  TCCR1 = 1<<CS10; // sets PWM frequency to about 40kHz??? if we believe the scope
+  
+  SetPwm(0);
+  
 }
 
 // Sets PWM on pin 4
