@@ -7,11 +7,12 @@
  
  TODO:
    Store values (frequency etc.) in EEPROM
-   Multiplex SPI pins to free up another pin for more PWM????
+   Multiplex SPI pins to free up another pin for more PWM???? NO, it SUCKS.
+   Multiplex MISO pin for analog read?? POSSIBLE.
    SPI:
      Multi bytes OR less than 8 bit resolution
      Clock prescaler and wider range of frequencies
-     H-bridge control... Is it possible???
+     H-bridge control... Is it possible??? NO.
  
  ATtiny85 test code
  
