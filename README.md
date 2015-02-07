@@ -8,7 +8,6 @@
  
 **TODO: Port to AtTiny84 and add features**
 * PWM: Investigate whether fast mode is outputting 1/255 duty cycle when set to 0x00 and change if need be
-* SPI: Port it
 * SPI: 2 byte input
 * SPI: Commands, such as read-without-setting and change-clock-speed
 * SPI: Output
