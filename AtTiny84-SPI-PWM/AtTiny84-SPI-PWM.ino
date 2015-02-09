@@ -41,10 +41,11 @@
 
 void setupPwm();
 void setupAdc();
-inline void SetPwm(int);
+inline void setPwm(int);
 
 volatile boolean csLow = false;	// chip select flag, active = low
-volatile int recvByte = 0;	// incoming spi byte
+volatile char recvByte = 0x00;	// incoming spi byte
+volatile char outByte = 0x00; // in case we need an extra buffer... like if recvByte gets overwritten before the command can get parsed, which SHOULDN'T happen...
 volatile boolean recvFlag = false;	// have received spi byte?
 volatile char PWMA_STATE = 0x00; // these will mostly be used for dealing with commands
 volatile char PWMB_STATE = 0x00;
@@ -125,10 +126,13 @@ inline void getAdc(){
   _delay_us(100);
 }
 
-inline void parseInput(char recvByte){
+inline void parseInput(char incoming){
+  // incoming is because i don't know of calling it recvByte would redefine the global recvByte
   // I think this maybe should go in the ISR??
   // Do we send out SPI byte immediately on receiving CS?????
   // I think so...
+  // So, Master will need to send a command, then send a garbage command
+  // and look at the reply from that... the top half should be the same
   
   // Take an SPI byte (command) and do stuff
   // SPICOMMAND: 0b76543210
@@ -138,59 +142,80 @@ inline void parseInput(char recvByte){
   // 4: Reserved, we can fit in 10 bit numbers or more commands
   // 3-0: Half of a byte, this is 'data'
   // I heard the arduino libraries foul up enums...
-  if(recvByte & (1<<7)){
+  outByte = recvByte & (0b11110000); // the least 4 bits are data
+  if(incoming & (1<<7)){
     // set pwm 
-    if(recvByte & (1<<6)){
+    if(incoming & (1<<6)){
       // channel a
-      if(recvByte & (1<<5)){
+      PWMA_STATE = OCR0A; // necessary? probs no
+      if(incoming & (1<<5)){
 	// MSN
 	// Set PWMA: MSN
+	OCR0A = (PWMA_STATE & 0b00001111) + (incoming << 4);
+	outByte += (PWMA_STATE>>4);
+	
       }
-      if(recvByte ^ (1<<5)){
+      if(incoming ^ (1<<5)){
 	// LSN
 	// Set PWMA: LSN
+	OCR0A = (PWMA_STATE & 0b11110000) + (incoming & 0b00001111);
+	outByte += (PWMA_STATE & 0b00001111);
       }
       
     }
-    if(recvByte ^ (1<<6)){
+    if(incoming ^ (1<<6)){
       // channel b
-      if(recvByte & (1<<5)){
+      PWMB_STATE = OCR0B; // necessary? probs no
+      if(incoming & (1<<5)){
 	// MSN
 	// Set PWMB: MSN
+	OCR0B = (PWMB_STATE & 0b00001111) + (incoming << 4);
+	PWMB_STATE = OCR0B;
+	outByte += (PWMB_STATE>>4);
       }
-      if(recvByte ^ (1<<5)){
+      if(incoming ^ (1<<5)){
 	// LSN
 	// Set PWMB: LSN
+	OCR0B = (PWMB_STATE & 0b11110000) + (incoming & 0b00001111);
+	PWMB_STATE = OCR0B;
+	outByte += (PWMB_STATE & 0b00001111);
       }
     }
   }
-  if(recvByte ^ (1<<7)){
+  if(incoming ^ (1<<7)){
     // get adc
     // IDK but it just seems mode 'solid' than an else statement
     // though i doubt that's true 
-    if(recvByte & (1<<6)){
+    if(incoming & (1<<6)){
       // channel a
-      if(recvByte & (1<<5)){
+      ADCA_STATE = analogRead(ADCA); // _delay_us(100); //necessary?
+      if(incoming & (1<<5)){
 	// MSN
 	// Get ADCA: MSN
+	outByte += ADCA_STATE>>4; //copy the highest 4 bits
       }
-      if(recvByte ^ (1<<5)){
+      if(incoming ^ (1<<5)){
 	// LSN
 	// Get ADCA: LSN
+	outByte += ADCA_STATE & 0b00001111; //copy the lowest 4 bits
       }  
     }
-    if(recvByte ^ (1<<6)){
+    if(incoming ^ (1<<6)){
       // channel b
-      if(recvByte & (1<<5)){
+      ADCB_STATE = analogRead(ADCB); // _delay_us(100); //necessary?
+      if(incoming & (1<<5)){
 	// MSN
 	// Get ADCB: MSN
+	outByte += ADCB_STATE>>4; //copy the highest 4 bits
       }
-      if(recvByte ^ (1<<5)){
+      if(incoming ^ (1<<5)){
 	// LSN
 	// Get ADCB: LSN
+	outByte += ADCB_STATE & 0b00001111;
       }
     }
   }  
+  recvByte = outByte; // recvByte will be transmitted next timer we're selected
 }
 
 void setup() {
@@ -220,26 +245,24 @@ void loop() {
 
 ISR(PCINT0_vect){//readies the system for a SPI transaction if the pin is low
   if(digitalRead(CS)==LOW){
-    //SetPwm(255);
     csLow = true; // //resetting is the job of the SPI overflow handler   
   }
   else{//when chip is deselected
     csLow = false;
-    //SetPwm(0);
   }
 }
 
 //then Master sends the message which should trigger the ISR, oversimplified part
 //the expectation is that Master sends one byte and asks for one byte in return
-ISR(USI_OVF_vect){//overflow
+ISR(USI_OVF_vect){//overflow, when we gots 8 bits
   byte c = USIDR; //read the USI Data Buffer
   USISR = 1 << USIOIF; //clear the interrupt flag, it needs to be set to 1 to clear and reset the counter
   if(csLow){  //this slave is selected, so byte is for this slave
     pinMode(MISO, OUTPUT); //get ready to send out a byte
-	USIDR = recvByte; //load the outgoing byte, in this case the previous byte
+	USIDR = recvByte; //load the outgoing byte, in this case the PREVIOUS byte
 	if(!recvFlag){
 		recvFlag=true;//next byte will be zero as master is expecting a value and sends junk to read it
-		recvByte= c; //save the byte
+		recvByte= c; //save the byte, which was already copied out of USIDR
 	}
 	else{//outgoing byte has been clocked out, reverse the MISO pin
 		pinMode(MISO,INPUT);
