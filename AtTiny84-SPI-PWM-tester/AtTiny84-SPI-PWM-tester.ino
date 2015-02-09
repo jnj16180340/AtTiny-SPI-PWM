@@ -10,6 +10,11 @@ Test a SPI slave
 #include "SPI.h" // necessary library
 int ss=10; // using digital pin 10 for SPI slave select
 byte pwmControl = 0b00000000;
+
+#define MOSI 11
+#define MISO 12
+#define SCLK 13
+#define CS 10
  
 void setup()
 {
@@ -39,9 +44,12 @@ void loop()
   //setValue(0b11111111);
   //delay(500);
   
+  
+  pwmControl= 0xFF;
   setValue(pwmControl);
-  pwmControl+=0b00000001;
-  //setValue(0b00001000);
-  delay(20);
+  delay(2000);
+  pwmControl = 0x00;
+  setValue(pwmControl);
+  delay(2000);
   
 }

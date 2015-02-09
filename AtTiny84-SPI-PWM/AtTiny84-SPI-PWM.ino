@@ -27,23 +27,29 @@
 // PWM
 #define PWMA 2 //84:pp5
 #define PWMB 3 //84:pp6
-#define ADCA 8 //84: pp11
-#define ADCB 9 //84:pp12
+#define ADCA A1 //84: pp11
+#define ADCB A2 //84:pp12
 
-#define F_CPU 8000000	// This is used by delay.h library
+#define F_CPU 8000000	// This is used by delay.h library???
+
+// These are the bits for SPI commands
+//#define SPIGETADC (0) or setPWM (1)
+// 6: A (0) or B (1)
+// 5: MSN (0) or LSN (1), N = nybble
+// 4: Reserved, we can fit in 10 bit numbers or more commands
+// 3-0: Half of a byte, this is 'data'
+
+void setupPwm();
+void setupAdc();
+inline void SetPwm(int);
 
 volatile boolean csLow = false;	// chip select flag, active = low
 volatile int recvByte = 0;	// incoming spi byte
 volatile boolean recvFlag = false;	// have received spi byte?
-
-// ATtiny85 outputs
-//volatile uint8_t* Port[] = {&OCR0A, &OCR0B, &OCR1B};
-//int Pin[] = {0, 1, 4};
-
-void setup() {
-  setupPwm();
-  setupSPI(); 
-}
+volatile char PWMA_STATE = 0x00; // these will mostly be used for dealing with commands
+volatile char PWMB_STATE = 0x00;
+volatile char ADCA_STATE = 0x00;
+volatile char ADCB_STATE = 0x00;
 
 void setupSPI(){
   // This should be complete.
@@ -67,6 +73,11 @@ void setupSPI(){
   sei();
 }
 
+void setupADC(){
+  pinMode(ADCA, INPUT);
+  pinMode(ADCB, INPUT);
+}
+
 void setupPwm(){
   // PWM setup
   // NB OC1x provides 16 bit pwm, but is used for the USI...
@@ -78,9 +89,9 @@ void setupPwm(){
   //GTCCR = 1<<PWM1B | 2<<COM1B0; //84: GTCCR does less/different stuff??
   
   // set normal mode for OC0A,B
-  TCCR0A = 1<<COM0A1 | 1<<COM0B1 | 1<<WGM01 | 1<<WGM00; //WGM01,WGM00
+  TCCR0A = 1<<COM0A1 | 1<<COM0B1 | 1<<WGM01 | 1<<WGM00 | 1<<COM0A0 | 1<<COM0B0; //set COM0*0 for inverted mode, so that we can turn completely off.
   // TCCR1: : CS02,01,00 (0,0,1)=fclk to (1,0,1) =fclk/1024, (1,1,0) = external clk
-  TCCR1A = 1<<CS00; //set 1<<WGM02 for 'mode 7' fast pwm, top less than 0xFF see  p83//CS02,01,00 are clock select bits, see p84
+  TCCR1A = 1<<CS00; //set 1<<WGM02 for 'mode 7' fast pwm, top less than 0xFF see  p83//CS02,01,00 are clock select bits, see p84. CS00 is fioclk undivided
   //TCCR1 = 3<<COM1A0 | 7<<CS10;
   // CS10 is a clock rate divisor; COM1A0 set above is bugfix which is irrelevant (we're not using inverted mode, which needs COM1A0 to be nonzero)
   // but scope (crappy computer scope) says 62500ish...
@@ -92,31 +103,119 @@ void setupPwm(){
   // 8: 250
   //TCCR1 = 1<<CS10; // sets PWM frequency to about 40kHz??? if we believe the scope, see 85:p89
   
-  SetPwm(0);
+  OCR0A = 0xFF; //Set both PWM to 0
+  OCR0B = 0xFF;
   
 }
 
-// Sets PWM on pin 4
-inline void SetPwm (int duty) {
-  OCR0A = duty;
-  OCR0B = duty;
+inline void setPwm () {
+  // Call this to set PWMs, after figuring out what they should be
+  OCR0A = PWMA_STATE;
+  OCR0B = PWMB_STATE;
+  //_delay_us(10);
+}
+
+inline void getAdc(){
+  // read this to update both adc states 
+  // read takes 100 usecs, don't think it needs a manual delay
+  // I have no idea whether it's getting the msb or lsb of analogRead, which returns 0...1023
+  ADCA_STATE = analogRead(ADCA);
+  _delay_us(100);
+  ADCB_STATE = analogRead(ADCB);
+  _delay_us(100);
+}
+
+inline void parseInput(char recvByte){
+  // I think this maybe should go in the ISR??
+  // Do we send out SPI byte immediately on receiving CS?????
+  // I think so...
+  
+  // Take an SPI byte (command) and do stuff
+  // SPICOMMAND: 0b76543210
+  // 7: getADC (0) or setPWM (1)
+  // 6: A (0) or B (1)
+  // 5: MSN (0) or LSN (1), N = nybble
+  // 4: Reserved, we can fit in 10 bit numbers or more commands
+  // 3-0: Half of a byte, this is 'data'
+  // I heard the arduino libraries foul up enums...
+  if(recvByte & (1<<7)){
+    // set pwm 
+    if(recvByte & (1<<6)){
+      // channel a
+      if(recvByte & (1<<5)){
+	// MSN
+	// Set PWMA: MSN
+      }
+      if(recvByte ^ (1<<5)){
+	// LSN
+	// Set PWMA: LSN
+      }
+      
+    }
+    if(recvByte ^ (1<<6)){
+      // channel b
+      if(recvByte & (1<<5)){
+	// MSN
+	// Set PWMB: MSN
+      }
+      if(recvByte ^ (1<<5)){
+	// LSN
+	// Set PWMB: LSN
+      }
+    }
+  }
+  if(recvByte ^ (1<<7)){
+    // get adc
+    // IDK but it just seems mode 'solid' than an else statement
+    // though i doubt that's true 
+    if(recvByte & (1<<6)){
+      // channel a
+      if(recvByte & (1<<5)){
+	// MSN
+	// Get ADCA: MSN
+      }
+      if(recvByte ^ (1<<5)){
+	// LSN
+	// Get ADCA: LSN
+      }  
+    }
+    if(recvByte ^ (1<<6)){
+      // channel b
+      if(recvByte & (1<<5)){
+	// MSN
+	// Get ADCB: MSN
+      }
+      if(recvByte ^ (1<<5)){
+	// LSN
+	// Get ADCB: LSN
+      }
+    }
+  }  
+}
+
+void setup() {
+  setupADC();
+  setupPwm();
+  setupSPI(); 
 }
 
 void loop() {
   if(recvFlag){
-    SetPwm(recvByte);
+    PWMA_STATE = recvByte;
+    PWMB_STATE = recvByte;
+    setPwm();
+    //_delay_ms(500);
     recvFlag = false;
   }
   
   //test code delete me
-  for(int i = 0; i<0xFF; i++){
-   //It seems to get reeaal wonky if both PWM pins draw too much current
-   //But not always!!!
-   OCR0A = i;
-   OCR0B = 0xFF-i;
-   //SetPwm(i);
-   delay(20); 
-  }
+
+  //getAdc();
+  //_delay_ms(100);
+  //PWMA_STATE = ADCA_STATE;
+  //PWMB_STATE = ADCB_STATE;
+  //                             _delay_ms(100);
+  //setPwm();
 }
 
 ISR(PCINT0_vect){//readies the system for a SPI transaction if the pin is low
