@@ -29,6 +29,7 @@
 #define PWMB 3 //84:pp6
 #define ADCA A1 //84: pp11
 #define ADCB A2 //84:pp12
+#define PROTECT_BRIDGE true // If we set PWM on 1 channel, disable it on the other
 
 #define F_CPU 8000000	// This is used by delay.h library???
 
@@ -42,6 +43,7 @@
 void setupPwm();
 void setupAdc();
 inline void setPwm(int);
+inline void parseInput(char);
 
 volatile boolean csLow = false;	// chip select flag, active = low
 volatile char recvByte = 0x00;	// incoming spi byte
@@ -151,64 +153,68 @@ inline void parseInput(char incoming){
       if(incoming & (1<<5)){
 	// MSN
 	// Set PWMA: MSN
+	if(PROTECT_BRIDGE){OCR0B = 0xFF;} //Turn OFF PWMB
 	OCR0A = (PWMA_STATE & 0b00001111) + (incoming << 4);
 	outByte += (PWMA_STATE>>4);
 	
       }
-      if(incoming ^ (1<<5)){
+      else{
 	// LSN
 	// Set PWMA: LSN
+	if(PROTECT_BRIDGE){OCR0B = 0xFF;} //Turn OFF PWMB
 	OCR0A = (PWMA_STATE & 0b11110000) + (incoming & 0b00001111);
 	outByte += (PWMA_STATE & 0b00001111);
       }
       
     }
-    if(incoming ^ (1<<6)){
+    else{
       // channel b
       PWMB_STATE = OCR0B; // necessary? probs no
       if(incoming & (1<<5)){
 	// MSN
 	// Set PWMB: MSN
+	if(PROTECT_BRIDGE){OCR0A = 0xFF;} //Turn OFF PWMA
 	OCR0B = (PWMB_STATE & 0b00001111) + (incoming << 4);
 	PWMB_STATE = OCR0B;
 	outByte += (PWMB_STATE>>4);
       }
-      if(incoming ^ (1<<5)){
+      else{
 	// LSN
 	// Set PWMB: LSN
+	if(PROTECT_BRIDGE){OCR0A = 0xFF;} //Turn OFF PWMA
 	OCR0B = (PWMB_STATE & 0b11110000) + (incoming & 0b00001111);
 	PWMB_STATE = OCR0B;
 	outByte += (PWMB_STATE & 0b00001111);
       }
     }
   }
-  if(incoming ^ (1<<7)){
+  else{
     // get adc
     // IDK but it just seems mode 'solid' than an else statement
     // though i doubt that's true 
     if(incoming & (1<<6)){
       // channel a
-      ADCA_STATE = analogRead(ADCA); // _delay_us(100); //necessary?
+      ADCA_STATE = analogRead(ADCA); _delay_us(100); //necessary?
       if(incoming & (1<<5)){
 	// MSN
 	// Get ADCA: MSN
 	outByte += ADCA_STATE>>4; //copy the highest 4 bits
       }
-      if(incoming ^ (1<<5)){
+      else{
 	// LSN
 	// Get ADCA: LSN
 	outByte += ADCA_STATE & 0b00001111; //copy the lowest 4 bits
       }  
     }
-    if(incoming ^ (1<<6)){
+    else{
       // channel b
-      ADCB_STATE = analogRead(ADCB); // _delay_us(100); //necessary?
+      ADCB_STATE = analogRead(ADCB); _delay_us(100); //necessary?
       if(incoming & (1<<5)){
 	// MSN
 	// Get ADCB: MSN
 	outByte += ADCB_STATE>>4; //copy the highest 4 bits
       }
-      if(incoming ^ (1<<5)){
+      else{
 	// LSN
 	// Get ADCB: LSN
 	outByte += ADCB_STATE & 0b00001111;
@@ -226,10 +232,12 @@ void setup() {
 
 void loop() {
   if(recvFlag){
-    PWMA_STATE = recvByte;
-    PWMB_STATE = recvByte;
-    setPwm();
+    // Test code pls delete
+    //PWMA_STATE = recvByte;
+    //PWMB_STATE = recvByte;
+    //setPwm();
     //_delay_ms(500);
+    parseInput(recvByte);
     recvFlag = false;
   }
   
