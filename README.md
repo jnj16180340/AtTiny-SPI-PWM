@@ -12,6 +12,7 @@
 * MCU: Store values (frequency etc.) in EEPROM???
 * MCU: Add watchdog timer etc?
 * General: Reorganize source code and make into library/class type of thing
+* ADC: Set up registers by hand, instead of using arduino analogRead()
  
 AtTiny84 acts as SPI slave upon receiving a byte it sets fast PWM duty cycle to that byte. Currently the PWM frequency is hardcoded.  
  
