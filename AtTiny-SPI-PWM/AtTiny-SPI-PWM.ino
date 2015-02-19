@@ -9,7 +9,7 @@
 //  PWM        (D  3)  PA7  6|    |9   PA4  (D  6)
 //  PWM        (D  4)  PA6  7|    |8   PA5  (D  5)        PWM
 //                           +----+
-void pinMode(uint8_t,uint8_t);
+//void pinMode(uint8_t,uint8_t);
 #include <stdlib.h>
 //#include <EEPROM.h> //this would be for storing settings if we had any
 #include <avr/interrupt.h>
