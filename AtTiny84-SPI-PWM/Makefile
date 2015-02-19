@@ -6,6 +6,8 @@ ALTERNATE_CORE = tiny
 ARDUINO_VAR_PATH = /usr/share/arduino/tiny/cores/tiny
 BOARDS_TXT = /usr/share/arduino/tiny/boards.txt
 BOARD_TAG = attiny84at8
+# Use below for Tiny85 target
+#BOARD_TAG = attiny85at8
 ISP_PROG = usbtiny
 ARDMK_DIR = /usr/share/arduino
 ARDMK_PATH = /usr/bin

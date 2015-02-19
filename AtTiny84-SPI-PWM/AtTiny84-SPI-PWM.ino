@@ -17,6 +17,7 @@
 #include <avr/io.h>        // Adds useful constants
 #include <util/delay.h>    // Adds delay_ms and delay_us functions
 
+// TODO this is chip specific
 // SPI
 #define MOSI 4	//84:pp7  | 85:pp5 //somebody else switches mosi,miso pin values
 #define MISO 5	//84:pp8  | 85:pp6
@@ -24,6 +25,7 @@
 #define CS   7	//84:pp10, PA3 | 85:pp2
 //#define PCIE0  5	// Pin change interrupts //necessary???
 
+//TODO this is chip specific
 // PWM
 #define PWMA 2 //84:pp5
 #define PWMB 3 //84:pp6
@@ -61,7 +63,9 @@ void setupSPI(){
   pinMode(MOSI, INPUT);
   pinMode(SCK,  INPUT);
   pinMode(CS,   INPUT);
-
+  
+  //TODO this is chip specific
+  //TODO AND it's not as simple as just changing the register names :(
   //actual USI setup. Important... match the master settings accordingly
   USICR = 0; //set everything to zero.
   USICR = (1 << USIWM0) | (1 << USICS1) | (1 << USIOIE); //Three wire mode0, External clock positive edge both edges, Enable counter overflow interrupt
@@ -84,6 +88,8 @@ void setupADC(){
 void setupPwm(){
   // PWM setup
   // NB OC1x provides 16 bit pwm, but is used for the USI...
+  //TODO this is chip specific
+  //TODO AND it's not as simple as just changing the register names :(
   pinMode(PWMA, OUTPUT);
   pinMode(PWMB, OUTPUT);
   // Configure counter/timer1 for fast PWM on PB4
@@ -128,6 +134,7 @@ inline void getAdc(){
   _delay_us(100);
 }
 
+//TODO this is chip specific
 inline void parseInput(char incoming){
   // incoming is because i don't know of calling it recvByte would redefine the global recvByte
   // I think this maybe should go in the ISR??
@@ -232,23 +239,9 @@ void setup() {
 
 void loop() {
   if(recvFlag){
-    // Test code pls delete
-    //PWMA_STATE = recvByte;
-    //PWMB_STATE = recvByte;
-    //setPwm();
-    //_delay_ms(500);
     parseInput(recvByte);
     recvFlag = false;
   }
-  
-  //test code delete me
-
-  //getAdc();
-  //_delay_ms(100);
-  //PWMA_STATE = ADCA_STATE;
-  //PWMB_STATE = ADCB_STATE;
-  //                             _delay_ms(100);
-  //setPwm();
 }
 
 ISR(PCINT0_vect){//readies the system for a SPI transaction if the pin is low
