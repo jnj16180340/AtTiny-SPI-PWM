@@ -1,6 +1,8 @@
 # AtTiny84-SPI-PWM  
 ===
- This should compile for both Tiny84 and Tiny85, eith makefile un/commenting. Tiny85 pretends to have the functionality of its relative, but assigns both PWMs to the same pin and always returns 0 for both ADCs.
+ This compiles for both Tiny84 and Tiny85, with makefile un/commenting. Tiny85 pretends to have the functionality of its relative, but assigns both PWMs to the same pin and always returns 0 for both ADCs.
+ 
+ Below applies to the Tiny84 build and hasn't been verified in hardware since it was merged.
  
  This is in progress, porting to AtTiny84 and adding functionality. Currently (pun intended),  
  
@@ -9,7 +11,8 @@
  **ADCs** are tested, mostly   
  
 **TODO: **
-* META: Merge with AtTiny85 (master) branch, using different registers for each mcu type + appropriate tweaks to adc/pwm fns
+* META: Split the chip-specific stuff off into separate header files
+* META: Make the chip specific stuff a little more sane
 * ADC: Change output to 10 bits, there's no reason not to
 * ADC: Test sweep of range over SPI
 * PWM: Test sweep of range over SPI
