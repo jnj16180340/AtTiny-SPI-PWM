@@ -2,12 +2,14 @@
 # NB version from debian is hopelessly outdated
 # !!! Important. You have to use make ispload to upload when using ISP programmer
 ALTERNATE_CORE = tiny
-#ALTERNATE_CORE_PATH = /usr/share/arduino/tiny
+ALTERNATE_CORE_PATH = /usr/share/arduino/tiny
 ARDUINO_VAR_PATH = /usr/share/arduino/tiny/cores/tiny
 BOARDS_TXT = /usr/share/arduino/tiny/boards.txt
-BOARD_TAG = attiny84at8
+ BOARD_TAG = attiny84at8
+ CPPFLAGS += -DEIGHTYFOUR
 # Use below for Tiny85 target
-#BOARD_TAG = attiny85at8
+# BOARD_TAG = attiny85at8
+# CPPFLAGS += -DEIGHTYFIVE
 ISP_PROG = usbtiny
 ARDMK_DIR = /usr/share/arduino
 ARDMK_PATH = /usr/bin

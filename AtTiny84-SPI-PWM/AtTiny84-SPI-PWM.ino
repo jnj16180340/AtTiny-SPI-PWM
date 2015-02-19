@@ -9,14 +9,16 @@
 //  PWM        (D  3)  PA7  6|    |9   PA4  (D  6)
 //  PWM        (D  4)  PA6  7|    |8   PA5  (D  5)        PWM
 //                           +----+
-
-
+void pinMode(uint8_t,uint8_t);
 #include <stdlib.h>
 //#include <EEPROM.h> //this would be for storing settings if we had any
 #include <avr/interrupt.h>
 #include <avr/io.h>        // Adds useful constants
 #include <util/delay.h>    // Adds delay_ms and delay_us functions
 
+// Makefile contains CPPFLAGS += -DEIGHTYFOUR etc.
+// But, this should be changed to the REAL architecture flag so we can omit the extra -D
+#ifdef EIGHTYFOUR //is AtTiny84 etc. reserved? let's let sleeping tigers lie
 // TODO this is chip specific
 // SPI
 #define MOSI 4	//84:pp7  | 85:pp5 //somebody else switches mosi,miso pin values
@@ -24,14 +26,32 @@
 #define SCK  6	//84:pp9  | 85:pp7
 #define CS   7	//84:pp10, PA3 | 85:pp2
 //#define PCIE0  5	// Pin change interrupts //necessary???
-
-//TODO this is chip specific
 // PWM
 #define PWMA 2 //84:pp5
 #define PWMB 3 //84:pp6
 #define ADCA A1 //84: pp11
 #define ADCB A2 //84:pp12
 #define PROTECT_BRIDGE true // If we set PWM on 1 channel, disable it on the other
+#define PCMSK_FUCK PCMSK0 // 85 calls this register PCMSK
+
+#endif
+
+#ifdef EIGHTYFIVE
+// SPI
+#define MOSI 0	//physical pin 5
+#define MISO 1	//physical pin 6
+#define SCK 2	//physical pin 7
+#define CS 3	//physical pin 2
+#define PCIE0 5	// Pin change interrupts, this MIGHT BE UNNECESSARY
+// PWM
+#define PWMA 4
+#define PWMB 4
+
+#define PROTECT_BRIDGE false
+// there is no PWM B nor ADCs
+// for convenience, we'll fake them in the 85 branch
+#define PCMSK_FUCK PCMSK
+#endif
 
 #define F_CPU 8000000	// This is used by delay.h library???
 
@@ -44,7 +64,8 @@
 
 void setupPwm();
 void setupAdc();
-inline void setPwm(int);
+void setupSPI();
+//inline void setPwm(int);
 inline void parseInput(char);
 
 volatile boolean csLow = false;	// chip select flag, active = low
@@ -57,6 +78,8 @@ volatile char ADCA_STATE = 0x00;
 volatile char ADCB_STATE = 0x00;
 
 void setupSPI(){
+  //TODO this is NOT chip specific. LUCKILY the right 84 pins were selected for interrupts :)
+  
   // This should be complete.
   //pin setup
   pinMode(MISO, INPUT); //disabled for start condition
@@ -64,8 +87,7 @@ void setupSPI(){
   pinMode(SCK,  INPUT);
   pinMode(CS,   INPUT);
   
-  //TODO this is chip specific
-  //TODO AND it's not as simple as just changing the register names :(
+  
   //actual USI setup. Important... match the master settings accordingly
   USICR = 0; //set everything to zero.
   USICR = (1 << USIWM0) | (1 << USICS1) | (1 << USIOIE); //Three wire mode0, External clock positive edge both edges, Enable counter overflow interrupt
@@ -73,18 +95,31 @@ void setupSPI(){
   //chip select interrupt
   // 84: Becomes PCMSK1 + PCMSK0 (xxxx11,pcint10,9,8 + pcint7,...,0)
   // 84: So pp10 is still PCINT3... woot
-  PCMSK0 |= (1<<PCINT3); //PB3 Pin change interrupt PCINT1, which is handled by ISR for PCINT0_vect
+  PCMSK_FUCK |= (1<<PCINT3); //PB3 Pin change interrupt PCINT1, which is handled by ISR for PCINT0_vect
   //PCMSK |= 0b00001000;
   GIMSK  |= (1<<PCIE0); // 84: PCIE1 is also available.
   //GIMSK |= 0b00100000;
   sei();
 }
 
+#ifdef EIGHTYFOUR
 void setupADC(){
+  // Better control could be had here by tweaking registers, if you wanna read the datasheet some more
+  // AtTiny85 does not have a free adc pin (UNLESS we multiplex... MISO???) 
   pinMode(ADCA, INPUT);
   pinMode(ADCB, INPUT);
 }
+#endif
 
+#ifdef EIGHTYFIVE
+void setupADC(){
+  // Better control could be had here by tweaking registers, if you wanna read the datasheet some more
+  // AtTiny85 does not have a free adc pin (UNLESS we multiplex... MISO???) 
+  _delay_us(1); //is having a completely empty function allowed? let's let sleeping tigers lie
+}
+#endif
+
+#ifdef EIGHTYFOUR
 void setupPwm(){
   // PWM setup
   // NB OC1x provides 16 bit pwm, but is used for the USI...
@@ -116,14 +151,40 @@ void setupPwm(){
   OCR0B = 0xFF;
   
 }
+#endif
 
+#ifdef EIGHTYFIVE
+void setupPwm(){
+// PWM setup
+pinMode(PWMA, OUTPUT);
+// Configure counter/timer1 for fast PWM on PB4
+// COM1B0: 2 -> normal, 3 -> inverting
+GTCCR = 1<<PWM1B | 3<<COM1B0;
+//TCCR1 = 3<<COM1A0 | 7<<CS10;
+// CS10 is a clock rate divisor; COM1A0 set above is bugfix which is irrelevant (we're not using inverted mode, which needs COM1A0 to be nonzero)
+// but scope (crappy computer scope) says 62500ish...
+// 1: 40000
+// 2: 20000
+// 3: 8000
+// 4: 4000
+// 7: 500
+// 8: 250
+TCCR1 = (1<<CS10) | (1<<COM1A0); // sets PWM frequency to about 40kHz??? if we believe the scope
+// COM1A0 thing is a bugfix which MAY be irrelevant with newer chips
+OCR1B = 0xFF;
+}
+#endif
+
+/*
 inline void setPwm () {
   // Call this to set PWMs, after figuring out what they should be
   OCR0A = PWMA_STATE;
   OCR0B = PWMB_STATE;
   //_delay_us(10);
 }
+*/
 
+#ifdef EIGHTYFOUR
 inline void getAdc(){
   // read this to update both adc states 
   // read takes 100 usecs, don't think it needs a manual delay
@@ -133,7 +194,20 @@ inline void getAdc(){
   ADCB_STATE = analogRead(ADCB);
   _delay_us(100);
 }
+#endif
+#ifdef EIGHTYFIVE
+inline void getAdc(){
+  // read this to update both adc states 
+  // read takes 100 usecs, don't think it needs a manual delay
+  // I have no idea whether it's getting the msb or lsb of analogRead, which returns 0...1023
+  ADCA_STATE = 0x00;
+  //_delay_us(100);
+  ADCB_STATE = 0x00;
+  //_delay_us(100);
+}
+#endif
 
+#ifdef EIGHTYFOUR
 //TODO this is chip specific
 inline void parseInput(char incoming){
   // incoming is because i don't know of calling it recvByte would redefine the global recvByte
@@ -230,7 +304,105 @@ inline void parseInput(char incoming){
   }  
   recvByte = outByte; // recvByte will be transmitted next timer we're selected
 }
-
+#endif
+#ifdef EIGHTYFIVE
+//TODO this is chip specific
+inline void parseInput(char incoming){
+  // incoming is because i don't know of calling it recvByte would redefine the global recvByte
+  // I think this maybe should go in the ISR??
+  // Do we send out SPI byte immediately on receiving CS?????
+  // I think so...
+  // So, Master will need to send a command, then send a garbage command
+  // and look at the reply from that... the top half should be the same
+  
+  // Take an SPI byte (command) and do stuff
+  // SPICOMMAND: 0b76543210
+  // 7: getADC (0) or setPWM (1)
+  // 6: A (0) or B (1)
+  // 5: MSN (0) or LSN (1), N = nybble
+  // 4: Reserved, we can fit in 10 bit numbers or more commands
+  // 3-0: Half of a byte, this is 'data'
+  // I heard the arduino libraries foul up enums...
+  outByte = recvByte & (0b11110000); // the least 4 bits are data
+  if(incoming & (1<<7)){
+    // set pwm 
+    if(incoming & (1<<6)){
+      // channel a
+      PWMA_STATE = OCR1B; // necessary? probs no
+      if(incoming & (1<<5)){
+	// MSN
+	// Set PWMA: MSN
+	if(PROTECT_BRIDGE){OCR1B = 0xFF;} //Turn OFF PWMB
+	OCR1B = (PWMA_STATE & 0b00001111) + (incoming << 4);
+	outByte += (PWMA_STATE>>4);
+	
+      }
+      else{
+	// LSN
+	// Set PWMA: LSN
+	if(PROTECT_BRIDGE){OCR1B = 0xFF;} //Turn OFF PWMB
+	OCR1B = (PWMA_STATE & 0b11110000) + (incoming & 0b00001111);
+	outByte += (PWMA_STATE & 0b00001111);
+      }
+      
+    }
+    else{
+      // channel b
+      PWMB_STATE = OCR1B; // necessary? probs no
+      if(incoming & (1<<5)){
+	// MSN
+	// Set PWMB: MSN
+	if(PROTECT_BRIDGE){OCR1B = 0xFF;} //Turn OFF PWMA
+	OCR1B = (PWMB_STATE & 0b00001111) + (incoming << 4);
+	PWMB_STATE = OCR1B;
+	outByte += (PWMB_STATE>>4);
+      }
+      else{
+	// LSN
+	// Set PWMB: LSN
+	if(PROTECT_BRIDGE){OCR1B = 0xFF;} //Turn OFF PWMA
+	OCR1B = (PWMB_STATE & 0b11110000) + (incoming & 0b00001111);
+	PWMB_STATE = OCR1B;
+	outByte += (PWMB_STATE & 0b00001111);
+      }
+    }
+  }
+  else{
+    // get adc
+    // IDK but it just seems mode 'solid' than an else statement
+    // though i doubt that's true 
+    if(incoming & (1<<6)){
+      // channel a
+      ADCA_STATE = 0x00; //necessary?
+      if(incoming & (1<<5)){
+	// MSN
+	// Get ADCA: MSN
+	outByte += ADCA_STATE>>4; //copy the highest 4 bits
+      }
+      else{
+	// LSN
+	// Get ADCA: LSN
+	outByte += ADCA_STATE & 0b00001111; //copy the lowest 4 bits
+      }  
+    }
+    else{
+      // channel b
+      ADCB_STATE = 0x00; //necessary?
+      if(incoming & (1<<5)){
+	// MSN
+	// Get ADCB: MSN
+	outByte += ADCB_STATE>>4; //copy the highest 4 bits
+      }
+      else{
+	// LSN
+	// Get ADCB: LSN
+	outByte += ADCB_STATE & 0b00001111;
+      }
+    }
+  }  
+  recvByte = outByte; // recvByte will be transmitted next timer we're selected
+}
+#endif
 void setup() {
   setupADC();
   setupPwm();

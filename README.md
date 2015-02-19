@@ -1,5 +1,7 @@
 # AtTiny84-SPI-PWM  
 ===
+ This should compile for both Tiny84 and Tiny85, eith makefile un/commenting. Tiny85 pretends to have the functionality of its relative, but assigns both PWMs to the same pin and always returns 0 for both ADCs.
+ 
  This is in progress, porting to AtTiny84 and adding functionality. Currently (pun intended),  
  
  **PWMs** are tested, mostly  
